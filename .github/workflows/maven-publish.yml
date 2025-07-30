@@ -1,37 +1,36 @@
-name: Java CI with Maven
+name: Maven Build & Test
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Cache Maven packages
-        uses: actions/cache@v3
+      - name: Build and Test with Maven
+        run: mvn -B clean install
+
+      - name: Archive test reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: |
-            ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: surefire-reports
+          path: target/surefire-reports/
 
-      - name: Build with Maven
-        run: mvn -B package --file pom.xml
-
-      - name: Run Tests
-        run: mvn test
+      - name: Notify n8n on failure
+        if: failure()
+        run: |
+          curl -X POST https://YOUR_N8N_DOMAIN/webhook/github-failure \
+          -H "Content-Type: application/json" \
+          -d '{"repository": "${{ github.repository }}", "run_id": "${{ github.run_id }}"}'
